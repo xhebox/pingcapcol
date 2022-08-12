@@ -3,5 +3,5 @@ Description=update pingcap project hourly
 
 [Service]
 Type=simple
-ExecStart=/bin/sh -c '/home/xhe/secret/pingcapcol/scanTiDB/scanTiDB.sh "updated:>=$(date --date="70 minutes ago" "+%%Y-%%m-%%dT%%H:%%M:%%SZ")"'
+ExecStart=/bin/sh -c '/home/xhe/secret/pingcapcol/scanTiDB/scanTiDB.sh "updated:>=$(date -u --date="70 minutes ago" "+%%Y-%%m-%%dT%%H:%%M:%%SZ")"'
 User=xhe
