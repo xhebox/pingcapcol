@@ -1,8 +1,8 @@
 #!/bin/bash
-# start tidb in the operator
+# start tidb in k8s
 set -ex
 
-export KUBECTL="kubecel"
+export KUBECTL="kubectl"
 export TIDBOP_VERSION="v1.3.7"
 export CHAOS_VERSION="2.3.0"
 export NAMESPACE="testing"
@@ -16,7 +16,7 @@ if [ -n "$1" ]; then
 	$HELM repo update
 fi
 
-$KUBECTL delete namespace $NAMESPACE || true
+$KUBECTL delete namespace $NAMESPACE
 $KUBECTL create namespace $NAMESPACE || true
 $HELM install operator pingcap/tidb-operator --namespace $NAMESPACE --version $TIDBOP_VERSION
 $HELM install cluster pingcap/tidb-cluster --namespace $NAMESPACE --version $TIDBOP_VERSION --set \
