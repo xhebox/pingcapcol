@@ -355,7 +355,7 @@ node(id: \"$projectID\") {
 }
 }")"
 
-	echo "###################### delete inactive done"
+	echo "###################### delete 2M/3M/inactive done"
 	cursor="$deleteCursor"
 	while true; do
 		_cursor=""
@@ -391,16 +391,18 @@ node(id: \"$projectID\") {
 			itemID="$(echo $item | jq -r -c '.id')"
 			itemStatus="$(echo "$item" | jq -r -c '.status.name' )"
 			itemTime="$(echo "$item" | jq -r -c '.time.name' )"
-			if [ "$itemTime" = "Inactive" -a "$itemStatus" = "Done" ]; then
-				id="$(graphql '.data.deleteProjectV2Item.deletedItemId' "mutation {
-		deleteProjectV2Item(input: {projectId: \"$projectID\", itemId: \"$itemID\"}) {
-			deletedItemId
-		}
-		}")"
-				echo "deleted [$itemID]"
-				if [ -z "$id" -o "$id" = "\"\"" ]; then
-					echo "failed to delete"
-					exit 2
+			if [ "$itemStatus" = "Done" ]; then
+				if [ "$itemTime" = "Inactive" -o "$itemTime" = "3M" -o "$itemTime" = "2M" ]; then
+					id="$(graphql '.data.deleteProjectV2Item.deletedItemId' "mutation {
+			deleteProjectV2Item(input: {projectId: \"$projectID\", itemId: \"$itemID\"}) {
+				deletedItemId
+			}
+			}")"
+					echo "deleted [$itemID]"
+					if [ -z "$id" -o "$id" = "\"\"" ]; then
+						echo "failed to delete"
+						exit 2
+					fi
 				fi
 			fi
 		done
