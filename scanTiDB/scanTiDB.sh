@@ -16,6 +16,16 @@ pullCursor="$5"
 fields=""
 retry=3
 
+isOutDated() {
+	itemStatus="$1"
+	itemTime="$2"
+	if [ "$itemStatus" = "Done" ]; then
+		if [ "$itemTime" = "Inactive" -o "$itemTime" = "3M" -o "$itemTime" = "2M" -o "$itemTime" = "1M" ]; then
+			echo 'outdated'
+		fi
+	fi
+}
+
 graphql() {
 	res=""
 	jq="$1"
@@ -216,10 +226,8 @@ processItem() {
 	echo "status: $status"
 	echo "time: $time"
 
-	if [ "$itemStatus" = "Done" ]; then
-		if [ "$itemTime" = "Inactive" -o "$itemTime" = "3M" -o "$itemTime" = "2M" ]; then
-			return
-		fi
+	if [ -n "$(isOutDated $itemStatus $itemTime)" ]; then
+		return
 	fi
 
 	itemID="$(graphql '.data.addProjectV2ItemById.item.id' "mutation {
@@ -357,7 +365,7 @@ node(id: \"$projectID\") {
 }
 }")"
 
-	echo "###################### delete 2M/3M/inactive done"
+	echo "###################### delete outdated done"
 	cursor="$deleteCursor"
 	while true; do
 		_cursor=""
@@ -393,18 +401,16 @@ node(id: \"$projectID\") {
 			itemID="$(echo $item | jq -r -c '.id')"
 			itemStatus="$(echo "$item" | jq -r -c '.status.name' )"
 			itemTime="$(echo "$item" | jq -r -c '.time.name' )"
-			if [ "$itemStatus" = "Done" ]; then
-				if [ "$itemTime" = "Inactive" -o "$itemTime" = "3M" -o "$itemTime" = "2M" ]; then
-					id="$(graphql '.data.deleteProjectV2Item.deletedItemId' "mutation {
-			deleteProjectV2Item(input: {projectId: \"$projectID\", itemId: \"$itemID\"}) {
+			if [ -n "$(isOutDated $itemStatus $itemTime)" ]; then
+				id="$(graphql '.data.deleteProjectV2Item.deletedItemId' "mutation {
+				deleteProjectV2Item(input: {projectId: \"$projectID\", itemId: \"$itemID\"}) {
 				deletedItemId
 			}
-			}")"
-					echo "deleted [$itemID]"
-					if [ -z "$id" -o "$id" = "\"\"" ]; then
-						echo "failed to delete"
-						exit 2
-					fi
+}")"
+				echo "deleted [$itemID]"
+				if [ -z "$id" -o "$id" = "\"\"" ]; then
+					echo "failed to delete"
+					exit 2
 				fi
 			fi
 		done
