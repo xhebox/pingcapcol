@@ -216,8 +216,10 @@ processItem() {
 	echo "status: $status"
 	echo "time: $time"
 
-	if [ "$time" = "Inactive" -a "$status" = "Done" ]; then
-		return
+	if [ "$itemStatus" = "Done" ]; then
+		if [ "$itemTime" = "Inactive" -o "$itemTime" = "3M" -o "$itemTime" = "2M" ]; then
+			return
+		fi
 	fi
 
 	itemID="$(graphql '.data.addProjectV2ItemById.item.id' "mutation {
