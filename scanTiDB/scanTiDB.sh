@@ -142,6 +142,24 @@ repository(owner: \"pingcap\", name: \"tidb\") {
 	done
 }
 
+closeDMRItem() {
+	item="$1"
+
+	echo "=================="
+	echo "$item"
+	itemType="$(echo "$item" | jq -r -c '.__typename' )"
+	itemNumber="$(echo "$item" | jq -r -c '.number' )"
+	title="$(echo "$item" | jq -r -c '.title' )"
+	closed="$(echo "$item" | jq -r -c '.closed')"
+
+	echo "type: $itemType"
+	echo "number: $itemNumber"
+	echo "closed: $closed"
+	echo "title: $title"
+
+	gh pr close "$itemNumber" -R pingcap/tidb -c "close for DMR version"
+}
+
 processItem() {
 	item="$1"
 
@@ -225,6 +243,7 @@ processItem() {
 	echo "updatedAt: $updatedAt"
 	echo "status: $status"
 	echo "time: $time"
+
 
 	if [ -n "$(isOutDated $itemStatus $itemTime)" ]; then
 		return
@@ -330,7 +349,7 @@ archiveInactiveDone() {
 	true
 }
 
-init() {
+initProject() {
 	echo "###################### init"
 	fields="$(graphql '.data.node.fields.nodes' "query{
 node(id: \"$projectID\") {
@@ -422,8 +441,9 @@ node(id: \"$projectID\") {
 	done
 }
 
-main() {
+searchIssue() {
 	text=$1
+	func=$2
 
 	echo "###################### update issues [$text]"
 	cursor="$issueCursor"
@@ -467,7 +487,7 @@ search($_cursor, type: ISSUE, first: $pagesize, query: \"repo:pingcap/tidb $text
 		echo "$res" | jq -c '.nodes[]' | while read -r item; do
 			typename="$(echo $item | jq -r -c '.__typename')"
 			if [ "$typename" = "Issue" ]; then
-				processItem "$item"
+				$func "$item"
 			fi
 		done
 		echo "done page[$cursor]"
@@ -476,6 +496,11 @@ search($_cursor, type: ISSUE, first: $pagesize, query: \"repo:pingcap/tidb $text
 		fi
 		cursor=$(echo "$res" | jq -r -c '.pageInfo.endCursor')
 	done
+}
+
+searchPull() {
+	text=$1
+	func=$2
 
 	echo "###################### update pull requests [$text]"
 	cursor="$pullCursor"
@@ -516,7 +541,7 @@ search($_cursor, type: ISSUE, first: $pagesize, query: \"repo:pingcap/tidb is:pr
 		echo "$res" | jq -c '.nodes[]' | while read -r item; do
 			typename="$(echo $item | jq -r -c '.__typename')"
 			if [ "$typename" = "PullRequest" ]; then
-				processItem "$item"
+				$func "$item"
 			fi
 		done
 		echo "done page[$cursor]"
@@ -527,8 +552,15 @@ search($_cursor, type: ISSUE, first: $pagesize, query: \"repo:pingcap/tidb is:pr
 	done
 }
 
-init
-main "label:sig/sql-infra $filter"
+searchPull "is:pr is:open label:type/4.0-cherry-pick" closeDMRItem
+searchPull "is:pr is:open label:type/6.0-cherry-pick" closeDMRItem
+searchPull "is:pr is:open label:type/6.2-cherry-pick" closeDMRItem
+searchPull "is:pr is:open label:type/6.3-cherry-pick" closeDMRItem
+
+initProject
+searchIssue "label:sig/sql-infra $filter" processItem
+searchPull "label:sig/sql-infra $filter" processItem
 for i in $MEMBERS; do
-	main "author:$i $filter"
+	searchIssue "author:$i $filter" processItem
+	searchPull "author:$i $filter" processItem
 done
