@@ -16,6 +16,25 @@ pullCursor="$5"
 fields=""
 retry=3
 
+getTime() {
+	time=""
+	diffDays=$(( ($($gdate '+%s') - $($gdate --date="$1" '+%s')) / 86400 ))
+	if [ "$diffDays" -le 7 ]; then
+		time="1W"
+	elif [ "$diffDays" -le 14 ]; then
+		time="2W"
+	elif [ "$diffDays" -le 30 ]; then
+		time="1M"
+	elif [ "$diffDays" -le 60 ]; then
+		time="2M"
+	elif [ "$diffDays" -le 90 ]; then
+		time="3M"
+	else
+		time="Inactive"
+	fi
+	echo $time
+}
+
 isOutDated() {
 	itemStatus="$1"
 	itemTime="$2"
@@ -223,29 +242,14 @@ processItem() {
 		status="Done"
 	fi
 
-	time=""
-	diffDays=$(( ($($gdate '+%s') - $($gdate --date=$updatedAt '+%s')) / 86400 ))
-	if [ "$diffDays" -le 7 ]; then
-		time="1W"
-	elif [ "$diffDays" -le 14 ]; then
-		time="2W"
-	elif [ "$diffDays" -le 30 ]; then
-		time="1M"
-	elif [ "$diffDays" -le 60 ]; then
-		time="2M"
-	elif [ "$diffDays" -le 90 ]; then
-		time="3M"
-	else
-		time="Inactive"
-	fi
+	time=$(getTime "$updatedAt")
 	echo "createdAt: $createdAt"
 	echo "type: $type"
 	echo "updatedAt: $updatedAt"
 	echo "status: $status"
 	echo "time: $time"
 
-
-	if [ -n "$(isOutDated $itemStatus $itemTime)" ]; then
+	if [ -n "$(isOutDated $itemStatus "$time")" ]; then
 		return
 	fi
 
@@ -384,7 +388,7 @@ node(id: \"$projectID\") {
 }
 }")"
 
-	echo "###################### delete outdated done"
+	echo "###################### delete & update outdated"
 	cursor="$deleteCursor"
 	while true; do
 		_cursor=""
@@ -402,7 +406,12 @@ node(id: \"$projectID\") {
 						name
 					}
 				}
-				time: fieldValueByName(name: \"Time\") {
+				time: fieldValueByName(name: \"UpdatedAt\") {
+					... on ProjectV2ItemFieldDateValue {
+						date
+					}
+				}
+				oldtime: fieldValueByName(name: \"Time\") {
 					... on ProjectV2ItemFieldSingleSelectValue {
 						name
 					}
@@ -419,8 +428,13 @@ node(id: \"$projectID\") {
 		echo "$res" | jq -c '.nodes[]' | while read -r item; do
 			itemID="$(echo $item | jq -r -c '.id')"
 			itemStatus="$(echo "$item" | jq -r -c '.status.name' )"
-			itemTime="$(echo "$item" | jq -r -c '.time.name' )"
-			if [ -n "$(isOutDated $itemStatus $itemTime)" ]; then
+			itemTime="$(echo "$item" | jq -r -c '.oldtime.name' )"
+			time="$(echo "$item" | jq -r -c '.time.date' )"
+			time="$(getTime "$time")"
+			timeField="$(getField "Time")"
+			timeFieldID="$(echo $timeField | jq -r -c ".id" )"
+			timeFieldOptionID="$(echo $timeField | jq -r -c ".options[] | select(.name == \"$time\") | .id")"
+			if [ -n "$(isOutDated $itemStatus $time)" ]; then
 				id="$(graphql '.data.deleteProjectV2Item.deletedItemId' "mutation {
 				deleteProjectV2Item(input: {projectId: \"$projectID\", itemId: \"$itemID\"}) {
 				deletedItemId
@@ -430,6 +444,28 @@ node(id: \"$projectID\") {
 				if [ -z "$id" -o "$id" = "\"\"" ]; then
 					echo "failed to delete"
 					exit 2
+				fi
+			elif [ "$itemTime" != "$time" ]; then
+				updatedResult="$(graphql '.data' "mutation {
+			type: updateProjectV2ItemFieldValue(
+			input: {
+				projectId: \"$projectID\"
+				itemId: \"$itemID\"
+				fieldId: \"$timeFieldID\"
+				value: {
+					singleSelectOptionId: \"$timeFieldOptionID\"
+				}
+			}) {
+				projectV2Item {
+					id
+				}
+			}
+}")"
+				if [ -z "$updatedResult" ]; then
+					echo "failed to update item[$itemID]"
+					exit 3
+				else
+					echo "updated item[$itemID]"
 				fi
 			fi
 		done
@@ -551,11 +587,6 @@ search($_cursor, type: ISSUE, first: $pagesize, query: \"repo:pingcap/tidb is:pr
 		cursor=$(echo "$res" | jq -r -c '.pageInfo.endCursor')
 	done
 }
-
-searchPull "is:pr is:open label:type/4.0-cherry-pick" closeDMRItem
-searchPull "is:pr is:open label:type/6.0-cherry-pick" closeDMRItem
-searchPull "is:pr is:open label:type/6.2-cherry-pick" closeDMRItem
-searchPull "is:pr is:open label:type/6.3-cherry-pick" closeDMRItem
 
 initProject
 searchIssue "label:sig/sql-infra $filter" processItem
