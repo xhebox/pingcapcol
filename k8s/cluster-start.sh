@@ -19,6 +19,7 @@ fi
 
 $KUBECTL delete --force namespace $NAMESPACE || true
 $KUBECTL create namespace $NAMESPACE || true
+$KUBECTL create secret generic basic-sess --namespace=$NAMESPACE --from-file=crt=cert.pem --from-file=key=key.pem
 $HELM install operator pingcap/tidb-operator --namespace $NAMESPACE --version $TIDBOP_VERSION --set "operatorImage=xhebox/operator:latest"
 #$HELM install chaos chaos-mesh/chaos-mesh --namespace $NAMESPACE --version $CHAOS_VERSION
 $KUBECTL apply -n $NAMESPACE -f ./cluster.yaml

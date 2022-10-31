@@ -34,7 +34,24 @@ spec:
     maxFailoverCount: 0
     service:
       type: ClusterIP
-    config: {}
+    config: |
+      [security]
+      session-token-signing-cert = "/var/sess/cert.pem"
+      session-token-signing-key = "/var/sess/key.pem"
+    additionalVolumes:
+      - name: "sess"
+        secret:
+          secretName: basic-sess
+          items:
+            - key: crt
+              path: cert.pem
+            - key: key
+              path: key.pem
+    additionalVolumeMounts:
+    additionalVolumeMounts:
+      - name: "sess"
+        mountPath: /var/sess
+        readOnly: false
   tiproxy:
     baseImage: xhebox/tiproxy
     version: latest
