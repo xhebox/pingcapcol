@@ -1,4 +1,3 @@
 #!/bin/bash
 set -ex
-docker build -t xhebox/scantidb:latest .
-docker push xhebox/scantidb:latest
+docker buildx build --platform linux/amd64,linux/arm64 --push -t xhebox/scantidb:latest .

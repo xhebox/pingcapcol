@@ -18,7 +18,9 @@ retry=3
 
 getTime() {
 	time=""
-	diffDays=$(( ($($gdate '+%s') - $($gdate --date="$1" '+%s')) / 86400 ))
+	if [ -n "$1" ] && [ "$1" != "null" ]; then
+		diffDays=$(( ($($gdate '+%s') - $($gdate --date="$1" '+%s')) / 86400 ))
+	fi
 	if [ "$diffDays" -le 7 ]; then
 		time="1W"
 	elif [ "$diffDays" -le 14 ]; then
